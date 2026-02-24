@@ -8,9 +8,10 @@ import SentimentChart from "@/components/SentimentChart";
 import KeywordChart from "@/components/KeywordChart";
 import FeedbackTable from "@/components/FeedbackTable";
 import HospitalChart from "@/components/HospitalChart";
+import ProductChart from "@/components/ProductChart";
 import DashboardFilters from "@/components/DashboardFilters";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { buildHospitalStats, extractKeywords } from "@/lib/hospitalAnalyzer";
+import { buildHospitalStats, buildProductStats, extractKeywords } from "@/lib/hospitalAnalyzer";
 
 type QuickDate = "all" | "today" | "week" | "month";
 type ReviewStatus = "all" | "reviewed" | "unreviewed";
@@ -41,6 +42,7 @@ function startOf(unit: "today" | "week" | "month"): Date {
 function applyFilters(
   rows: FeedbackRow[],
   selectedHospitals: string[],
+  selectedProducts: string[],
   quickDate: QuickDate,
   dateStart: string,
   dateEnd: string,
@@ -49,6 +51,9 @@ function applyFilters(
   return rows.filter((row) => {
     // 병원 필터
     if (selectedHospitals.length > 0 && !selectedHospitals.includes(row.hospital)) return false;
+
+    // 프로덕트 필터
+    if (selectedProducts.length > 0 && !selectedProducts.includes(row.product)) return false;
 
     // 날짜 필터
     const rowDate = parseDate(row.date);
@@ -90,6 +95,7 @@ export default function DashboardPage() {
 
   // 필터 상태
   const [selectedHospitals, setSelectedHospitals] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [quickDate, setQuickDate] = useState<QuickDate>("all");
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
@@ -105,15 +111,20 @@ export default function DashboardPage() {
 
   const filteredRows = useMemo(
     () => result
-      ? applyFilters(result.rows, selectedHospitals, quickDate, dateStart, dateEnd, reviewStatus)
+      ? applyFilters(result.rows, selectedHospitals, selectedProducts, quickDate, dateStart, dateEnd, reviewStatus)
       : [],
-    [result, selectedHospitals, quickDate, dateStart, dateEnd, reviewStatus]
+    [result, selectedHospitals, selectedProducts, quickDate, dateStart, dateEnd, reviewStatus]
   );
 
   const filteredStats = useMemo(() => computeStats(filteredRows), [filteredRows]);
 
   const filteredHospitalStats: HospitalStats[] = useMemo(
     () => buildHospitalStats(filteredRows),
+    [filteredRows]
+  );
+
+  const filteredProductStats = useMemo(
+    () => buildProductStats(filteredRows),
     [filteredRows]
   );
 
@@ -167,6 +178,9 @@ export default function DashboardPage() {
         hospitals={result.hospitals}
         selectedHospitals={selectedHospitals}
         onHospitalsChange={setSelectedHospitals}
+        products={result.products}
+        selectedProducts={selectedProducts}
+        onProductsChange={setSelectedProducts}
         quickDate={quickDate}
         onQuickDateChange={setQuickDate}
         dateStart={dateStart}
@@ -189,6 +203,9 @@ export default function DashboardPage() {
           totalNegative={filteredStats.totalNegative}
         />
       </div>
+
+      {/* 프로덕트별 차트 */}
+      <ProductChart productStats={filteredProductStats} />
 
       {/* 차트 행 2: 키워드 (긍정/부정 각각) */}
       <KeywordChart

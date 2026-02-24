@@ -1,6 +1,7 @@
-import type { FeedbackRow, HospitalStats, AnalysisResult, DetectedColumns } from "@/types/analysis";
+import type { FeedbackRow, HospitalStats, ProductStats, AnalysisResult, DetectedColumns } from "@/types/analysis";
 import type { KeywordEntry } from "@/types/analysis";
 import { extractKeywords } from "@/lib/keywordAnalyzer";
+import { normalizeHospitalName } from "@/lib/hospitalNormalizer";
 
 export function parseRows(
   rows: Record<string, string>[],
@@ -10,14 +11,16 @@ export function parseRows(
     const positiveFeedback = cols.positive ? (row[cols.positive] ?? "") : "";
     const negativeFeedback = cols.negative ? (row[cols.negative] ?? "") : "";
     const reviewedRaw = cols.reviewed ? (row[cols.reviewed] ?? "") : "";
+    const hospitalRaw = cols.hospital ? (row[cols.hospital] ?? "") : "";
 
     return {
       id: index + 1,
-      hospital: cols.hospital ? (row[cols.hospital] ?? "") : "",
+      hospital: normalizeHospitalName(hospitalRaw),
+      hospitalRaw,
       date: cols.date ? (row[cols.date] ?? "") : "",
       positiveFeedback,
       negativeFeedback,
-      comment: "",
+      product: cols.product ? (row[cols.product] ?? "") : "",
       reviewed: reviewedRaw.toUpperCase() === "TRUE",
       hasPositive: positiveFeedback.trim().length > 0,
       hasNegative: negativeFeedback.trim().length > 0,
@@ -38,6 +41,24 @@ export function buildHospitalStats(rows: FeedbackRow[]): HospitalStats[] {
     if (row.hasPositive) stat.positiveCount++;
     if (row.hasNegative) stat.negativeCount++;
     if (row.reviewed) stat.reviewedCount++;
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.total - a.total);
+}
+
+export function buildProductStats(rows: FeedbackRow[]): ProductStats[] {
+  const map = new Map<string, ProductStats>();
+
+  for (const row of rows) {
+    if (!row.product.trim()) continue;
+    const key = row.product.trim();
+    if (!map.has(key)) {
+      map.set(key, { product: key, total: 0, positiveCount: 0, negativeCount: 0 });
+    }
+    const stat = map.get(key)!;
+    stat.total++;
+    if (row.hasPositive) stat.positiveCount++;
+    if (row.hasNegative) stat.negativeCount++;
   }
 
   return Array.from(map.values()).sort((a, b) => b.total - a.total);
@@ -64,7 +85,7 @@ export function buildResult(
   detectedColumns: DetectedColumns
 ): AnalysisResult {
   const hospitalStats = buildHospitalStats(rows);
-  const hospitals = hospitalStats.map((s) => s.hospital);
+  const productStats = buildProductStats(rows);
 
   return {
     totalRows: rows.length,
@@ -72,8 +93,10 @@ export function buildResult(
     totalNegative: rows.filter((r) => r.hasNegative).length,
     totalReviewed: rows.filter((r) => r.reviewed).length,
     totalUnreviewed: rows.filter((r) => !r.reviewed).length,
-    hospitals,
+    hospitals: hospitalStats.map((s) => s.hospital),
     hospitalStats,
+    products: productStats.map((s) => s.product),
+    productStats,
     positiveKeywords,
     negativeKeywords,
     rows,

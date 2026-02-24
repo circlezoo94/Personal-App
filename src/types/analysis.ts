@@ -1,10 +1,11 @@
 export interface FeedbackRow {
   id: number;
-  hospital: string;
+  hospital: string;       // 정규화된 병원명
+  hospitalRaw: string;    // 원본 병원명
   date: string;
   positiveFeedback: string;
   negativeFeedback: string;
-  comment: string;
+  product: string;        // 프로덕트 리뷰
   reviewed: boolean;
   hasPositive: boolean;
   hasNegative: boolean;
@@ -18,6 +19,13 @@ export interface HospitalStats {
   reviewedCount: number;
 }
 
+export interface ProductStats {
+  product: string;
+  total: number;
+  positiveCount: number;
+  negativeCount: number;
+}
+
 export interface KeywordEntry {
   word: string;
   count: number;
@@ -29,6 +37,7 @@ export interface DetectedColumns {
   positive?: string;
   negative?: string;
   reviewed?: string;
+  product?: string;
 }
 
 export interface AnalysisResult {
@@ -39,6 +48,8 @@ export interface AnalysisResult {
   totalUnreviewed: number;
   hospitals: string[];
   hospitalStats: HospitalStats[];
+  products: string[];
+  productStats: ProductStats[];
   positiveKeywords: KeywordEntry[];
   negativeKeywords: KeywordEntry[];
   rows: FeedbackRow[];

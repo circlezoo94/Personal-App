@@ -5,6 +5,10 @@ interface Props {
   selectedHospitals: string[];
   onHospitalsChange: (v: string[]) => void;
 
+  products: string[];
+  selectedProducts: string[];
+  onProductsChange: (v: string[]) => void;
+
   quickDate: "all" | "today" | "week" | "month";
   onQuickDateChange: (v: "all" | "today" | "week" | "month") => void;
 
@@ -26,10 +30,58 @@ const QUICK_DATE_LABELS: { value: "all" | "today" | "week" | "month"; label: str
   { value: "month", label: "이번 달" },
 ];
 
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function ToggleButton({
+  active,
+  onClick,
+  color = "blue",
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  color?: "blue" | "indigo" | "purple" | "teal";
+  children: React.ReactNode;
+}) {
+  const activeClass = {
+    blue: "bg-blue-600 text-white border-blue-600",
+    indigo: "bg-indigo-600 text-white border-indigo-600",
+    purple: "bg-purple-600 text-white border-purple-600",
+    teal: "bg-teal-600 text-white border-teal-600",
+  }[color];
+  const hoverClass = {
+    blue: "hover:border-blue-400",
+    indigo: "hover:border-indigo-400",
+    purple: "hover:border-purple-400",
+    teal: "hover:border-teal-400",
+  }[color];
+
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+        active ? activeClass : `bg-white text-gray-600 border-gray-300 ${hoverClass}`
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function DashboardFilters({
   hospitals,
   selectedHospitals,
   onHospitalsChange,
+  products,
+  selectedProducts,
+  onProductsChange,
   quickDate,
   onQuickDateChange,
   dateStart,
@@ -40,12 +92,8 @@ export default function DashboardFilters({
   onReviewStatusChange,
   hasReviewedColumn,
 }: Props) {
-  const toggleHospital = (h: string) => {
-    if (selectedHospitals.includes(h)) {
-      onHospitalsChange(selectedHospitals.filter((x) => x !== h));
-    } else {
-      onHospitalsChange([...selectedHospitals, h]);
-    }
+  const toggle = (list: string[], item: string, setter: (v: string[]) => void) => {
+    setter(list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
   };
 
   const handleQuickDate = (v: "all" | "today" | "week" | "month") => {
@@ -64,66 +112,68 @@ export default function DashboardFilters({
     <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
       {/* 병원 필터 */}
       {hospitals.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            병원 필터
-          </p>
+        <FilterGroup label="병원 필터">
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => onHospitalsChange([])}
-              className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                selectedHospitals.length === 0
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
-              }`}
-            >
+            <ToggleButton active={selectedHospitals.length === 0} onClick={() => onHospitalsChange([])}>
               전체
-            </button>
+            </ToggleButton>
             {hospitals.map((h) => (
-              <button
+              <ToggleButton
                 key={h}
-                onClick={() => toggleHospital(h)}
-                className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                  selectedHospitals.includes(h)
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
-                }`}
+                active={selectedHospitals.includes(h)}
+                onClick={() => toggle(selectedHospitals, h, onHospitalsChange)}
               >
                 {h}
-              </button>
+              </ToggleButton>
             ))}
           </div>
-        </div>
+        </FilterGroup>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-4">
-        {/* 날짜 빠른 선택 */}
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            기간
-          </p>
-          <div className="flex gap-2">
-            {QUICK_DATE_LABELS.map(({ value, label }) => (
-              <button
-                key={value}
-                onClick={() => handleQuickDate(value)}
-                className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                  quickDate === value && !dateStart && !dateEnd
-                    ? "bg-indigo-600 text-white border-indigo-600"
-                    : "bg-white text-gray-600 border-gray-300 hover:border-indigo-400"
-                }`}
+      {/* 프로덕트 필터 */}
+      {products.length > 0 && (
+        <FilterGroup label="프로덕트 필터">
+          <div className="flex flex-wrap gap-2">
+            <ToggleButton
+              active={selectedProducts.length === 0}
+              onClick={() => onProductsChange([])}
+              color="teal"
+            >
+              전체
+            </ToggleButton>
+            {products.map((p) => (
+              <ToggleButton
+                key={p}
+                active={selectedProducts.includes(p)}
+                onClick={() => toggle(selectedProducts, p, onProductsChange)}
+                color="teal"
               >
-                {label}
-              </button>
+                {p}
+              </ToggleButton>
             ))}
           </div>
-        </div>
+        </FilterGroup>
+      )}
+
+      <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
+        {/* 날짜 빠른 선택 */}
+        <FilterGroup label="기간">
+          <div className="flex gap-2">
+            {QUICK_DATE_LABELS.map(({ value, label }) => (
+              <ToggleButton
+                key={value}
+                active={quickDate === value && !dateStart && !dateEnd}
+                onClick={() => handleQuickDate(value)}
+                color="indigo"
+              >
+                {label}
+              </ToggleButton>
+            ))}
+          </div>
+        </FilterGroup>
 
         {/* 날짜 범위 직접 선택 */}
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            날짜 범위
-          </p>
+        <FilterGroup label="날짜 범위">
           <div className="flex items-center gap-2">
             <input
               type="date"
@@ -139,14 +189,11 @@ export default function DashboardFilters({
               className="text-xs border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
             />
           </div>
-        </div>
+        </FilterGroup>
 
         {/* 검토 여부 */}
         {hasReviewedColumn && (
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              검토 여부
-            </p>
+          <FilterGroup label="검토 여부">
             <div className="flex gap-2">
               {(
                 [
@@ -155,20 +202,17 @@ export default function DashboardFilters({
                   { value: "unreviewed", label: "미검토" },
                 ] as const
               ).map(({ value, label }) => (
-                <button
+                <ToggleButton
                   key={value}
+                  active={reviewStatus === value}
                   onClick={() => onReviewStatusChange(value)}
-                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                    reviewStatus === value
-                      ? "bg-purple-600 text-white border-purple-600"
-                      : "bg-white text-gray-600 border-gray-300 hover:border-purple-400"
-                  }`}
+                  color="purple"
                 >
                   {label}
-                </button>
+                </ToggleButton>
               ))}
             </div>
-          </div>
+          </FilterGroup>
         )}
       </div>
     </div>

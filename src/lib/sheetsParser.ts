@@ -39,6 +39,7 @@ export function detectColumns(headers: string[]): DetectedColumns {
     positive: findColumn(headers, ["긍정 피드백"], ["긍정", "positive", "칭찬"]),
     negative: findColumn(headers, ["부정(개선) 피드백"], ["부정", "negative", "개선", "불만"]),
     reviewed: findColumn(headers, ["검토 여부"], ["검토", "reviewed", "확인", "check"]),
+    product: findColumn(headers, ["프로덕트 리뷰"], ["리뷰", "review"]),
   };
 }
 
