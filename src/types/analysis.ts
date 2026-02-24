@@ -1,18 +1,21 @@
 export interface FeedbackRow {
   id: number;
-  text: string;
-  sentiment: "positive" | "negative" | "neutral";
-  score: number;
-  comparative: number;
+  hospital: string;
+  date: string;
+  positiveFeedback: string;
+  negativeFeedback: string;
+  comment: string;
+  reviewed: boolean;
+  hasPositive: boolean;
+  hasNegative: boolean;
 }
 
-export interface SentimentBreakdown {
-  positive: number;
-  negative: number;
-  neutral: number;
-  positivePercent: number;
-  negativePercent: number;
-  neutralPercent: number;
+export interface HospitalStats {
+  hospital: string;
+  total: number;
+  positiveCount: number;
+  negativeCount: number;
+  reviewedCount: number;
 }
 
 export interface KeywordEntry {
@@ -20,18 +23,31 @@ export interface KeywordEntry {
   count: number;
 }
 
+export interface DetectedColumns {
+  hospital?: string;
+  date?: string;
+  positive?: string;
+  negative?: string;
+  reviewed?: string;
+}
+
 export interface AnalysisResult {
   totalRows: number;
-  analyzedRows: number;
-  sentiment: SentimentBreakdown;
-  keywords: KeywordEntry[];
+  totalPositive: number;
+  totalNegative: number;
+  totalReviewed: number;
+  totalUnreviewed: number;
+  hospitals: string[];
+  hospitalStats: HospitalStats[];
+  positiveKeywords: KeywordEntry[];
+  negativeKeywords: KeywordEntry[];
   rows: FeedbackRow[];
-  columnUsed: string;
+  dateRange: { min: string; max: string } | null;
+  detectedColumns: DetectedColumns;
 }
 
 export interface AnalyzeRequest {
   url: string;
-  textColumn?: string;
 }
 
 export interface AnalyzeError {

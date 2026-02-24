@@ -1,37 +1,23 @@
 "use client";
 
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import type { SentimentBreakdown } from "@/types/analysis";
+import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Props {
-  sentiment: SentimentBreakdown;
+  totalPositive: number;
+  totalNegative: number;
 }
 
-const COLORS: Record<string, string> = {
-  Positive: "#22c55e",
-  Neutral: "#eab308",
-  Negative: "#ef4444",
-};
-
-export default function SentimentChart({ sentiment }: Props) {
+export default function SentimentChart({ totalPositive, totalNegative }: Props) {
   const data = [
-    { name: "Positive", value: sentiment.positive },
-    { name: "Neutral", value: sentiment.neutral },
-    { name: "Negative", value: sentiment.negative },
+    { name: "긍정 피드백", value: totalPositive },
+    { name: "부정 피드백", value: totalNegative },
   ].filter((d) => d.value > 0);
+
+  const COLORS = ["#22c55e", "#ef4444"];
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">
-        Sentiment Distribution
-      </h2>
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">긍정 / 부정 비율</h2>
       <ResponsiveContainer width="100%" height={280}>
         <PieChart>
           <Pie
@@ -45,16 +31,11 @@ export default function SentimentChart({ sentiment }: Props) {
             label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
             labelLine={false}
           >
-            {data.map((entry) => (
-              <Cell key={entry.name} fill={COLORS[entry.name]} />
+            {data.map((_, i) => (
+              <Cell key={i} fill={COLORS[i % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip
-            formatter={(value: number, name: string) => [
-              `${value} responses`,
-              name,
-            ]}
-          />
+          <Tooltip formatter={(value: number, name: string) => [`${value}건`, name]} />
           <Legend />
         </PieChart>
       </ResponsiveContainer>

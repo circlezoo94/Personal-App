@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAndParseSheet, detectTextColumn } from "@/lib/sheetsParser";
-import { analyzeRows, buildSentimentBreakdown } from "@/lib/sentimentAnalyzer";
+import { fetchAndParseSheet } from "@/lib/sheetsParser";
+import { parseRows, buildResult } from "@/lib/hospitalAnalyzer";
 import { extractKeywords } from "@/lib/keywordAnalyzer";
 import type { AnalyzeRequest, AnalysisResult, AnalyzeError } from "@/types/analysis";
 
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { headers, rows } = await fetchAndParseSheet(body.url);
+    const { rows, detectedColumns } = await fetchAndParseSheet(body.url);
 
     if (rows.length === 0) {
       return NextResponse.json<AnalyzeError>(
@@ -24,28 +24,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const textColumn = body.textColumn ?? detectTextColumn(headers, rows);
-    const analyzedRows = analyzeRows(rows, textColumn);
+    const feedbackRows = parseRows(rows, detectedColumns);
 
-    if (analyzedRows.length === 0) {
-      return NextResponse.json<AnalyzeError>(
-        { error: `Column "${textColumn}" contains no readable text.` },
-        { status: 422 }
-      );
-    }
+    const positiveTexts = feedbackRows
+      .map((r) => r.positiveFeedback)
+      .filter((t) => t.length > 0);
+    const negativeTexts = feedbackRows
+      .map((r) => r.negativeFeedback)
+      .filter((t) => t.length > 0);
 
-    const sentiment = buildSentimentBreakdown(analyzedRows);
-    const texts = analyzedRows.map((r) => r.text);
-    const keywords = extractKeywords(texts, 20);
+    const positiveKeywords = extractKeywords(positiveTexts, 20);
+    const negativeKeywords = extractKeywords(negativeTexts, 20);
 
-    const result: AnalysisResult = {
-      totalRows: rows.length,
-      analyzedRows: analyzedRows.length,
-      sentiment,
-      keywords,
-      rows: analyzedRows,
-      columnUsed: textColumn,
-    };
+    const result: AnalysisResult = buildResult(
+      feedbackRows,
+      positiveKeywords,
+      negativeKeywords,
+      detectedColumns
+    );
 
     return NextResponse.json<AnalysisResult>(result, { status: 200 });
   } catch (err) {

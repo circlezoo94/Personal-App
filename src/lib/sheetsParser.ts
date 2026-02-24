@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import type { DetectedColumns } from "@/types/analysis";
 
 export function buildCsvUrl(inputUrl: string): string {
   const sheetIdMatch = inputUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
@@ -14,6 +15,31 @@ export function buildCsvUrl(inputUrl: string): string {
 export interface ParsedSheet {
   headers: string[];
   rows: Record<string, string>[];
+  detectedColumns: DetectedColumns;
+}
+
+function findColumn(headers: string[], exact: string[], keywords: string[]): string | undefined {
+  // 1) 정확한 컬럼명 매칭 (우선)
+  for (const name of exact) {
+    const match = headers.find((h) => h === name);
+    if (match) return match;
+  }
+  // 2) 키워드 포함 매칭 (폴백)
+  for (const keyword of keywords) {
+    const match = headers.find((h) => h.toLowerCase().includes(keyword.toLowerCase()));
+    if (match) return match;
+  }
+  return undefined;
+}
+
+export function detectColumns(headers: string[]): DetectedColumns {
+  return {
+    hospital: findColumn(headers, ["병원명"], ["hospital", "병원", "clinic", "기관", "지점"]),
+    date: findColumn(headers, ["접수 날짜"], ["날짜", "date", "일자", "접수", "작성일", "time"]),
+    positive: findColumn(headers, ["긍정 피드백"], ["긍정", "positive", "칭찬"]),
+    negative: findColumn(headers, ["부정(개선) 피드백"], ["부정", "negative", "개선", "불만"]),
+    reviewed: findColumn(headers, ["검토 여부"], ["검토", "reviewed", "확인", "check"]),
+  };
 }
 
 export async function fetchAndParseSheet(inputUrl: string): Promise<ParsedSheet> {
@@ -47,34 +73,6 @@ export async function fetchAndParseSheet(inputUrl: string): Promise<ParsedSheet>
   }
 
   const headers = result.meta.fields ?? [];
-  return { headers, rows: result.data };
-}
-
-export function detectTextColumn(
-  headers: string[],
-  rows: Record<string, string>[]
-): string {
-  const feedbackKeywords = [
-    "feedback", "comment", "response", "review",
-    "suggestion", "opinion", "text", "message", "note",
-  ];
-
-  for (const keyword of feedbackKeywords) {
-    const match = headers.find((h) => h.toLowerCase().includes(keyword));
-    if (match) return match;
-  }
-
-  let bestColumn = headers[0];
-  let bestAvgLength = 0;
-
-  for (const header of headers) {
-    const totalLength = rows.reduce((sum, row) => sum + (row[header]?.length ?? 0), 0);
-    const avg = rows.length > 0 ? totalLength / rows.length : 0;
-    if (avg > bestAvgLength) {
-      bestAvgLength = avg;
-      bestColumn = header;
-    }
-  }
-
-  return bestColumn;
+  const detectedColumns = detectColumns(headers);
+  return { headers, rows: result.data, detectedColumns };
 }
