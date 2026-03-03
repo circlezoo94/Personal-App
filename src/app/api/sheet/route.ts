@@ -19,7 +19,9 @@ export async function GET() {
     }
 
     const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+    const privateKey = (process.env.GOOGLE_PRIVATE_KEY ?? "")
+      .replace(/\\n/g, "\n")
+      .replace(/^"|"$/g, ""); // 앞뒤 따옴표 제거
     const sheetId = process.env.SHEET_ID;
     const gid = process.env.SHEET_GID ?? "0";
 
