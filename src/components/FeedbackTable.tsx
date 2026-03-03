@@ -12,6 +12,7 @@ const PAGE_SIZE = 10;
 
 export default function FeedbackTable({ rows, detectedColumns }: Props) {
   const [page, setPage] = useState(0);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   const totalPages = Math.ceil(rows.length / PAGE_SIZE);
   const paginated = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -21,6 +22,18 @@ export default function FeedbackTable({ rows, detectedColumns }: Props) {
   const showReviewed = !!detectedColumns.reviewed;
 
   const colSpan = 1 + (showHospital ? 1 : 0) + (showDate ? 1 : 0) + 2 + (showReviewed ? 1 : 0);
+
+  function toggleRow(id: number) {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -50,48 +63,71 @@ export default function FeedbackTable({ rows, detectedColumns }: Props) {
             </tr>
           </thead>
           <tbody>
-            {paginated.map((row) => (
-              <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50 align-top">
-                <td className="py-3 px-3 text-gray-400 text-xs">{row.id}</td>
-                {showHospital && (
-                  <td className="py-3 px-3 text-gray-700 text-xs font-medium whitespace-nowrap">
-                    {row.hospital || "—"}
-                  </td>
-                )}
-                {showDate && (
-                  <td className="py-3 px-3 text-gray-500 text-xs whitespace-nowrap">
-                    {row.date || "—"}
-                  </td>
-                )}
-                <td className="py-3 px-3 text-gray-700 max-w-xs">
-                  {row.positiveFeedback ? (
-                    <p className="line-clamp-3 text-green-800 text-xs">{row.positiveFeedback}</p>
-                  ) : (
-                    <span className="text-gray-300 text-xs">—</span>
+            {paginated.map((row) => {
+              const isExpanded = expandedRows.has(row.id);
+              return (
+                <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50 align-top">
+                  <td className="py-3 px-3 text-gray-400 text-xs">{row.id}</td>
+                  {showHospital && (
+                    <td className="py-3 px-3 text-gray-700 text-xs font-medium whitespace-nowrap">
+                      {row.hospital || "—"}
+                    </td>
                   )}
-                </td>
-                <td className="py-3 px-3 text-gray-700 max-w-xs">
-                  {row.negativeFeedback ? (
-                    <p className="line-clamp-3 text-red-800 text-xs">{row.negativeFeedback}</p>
-                  ) : (
-                    <span className="text-gray-300 text-xs">—</span>
+                  {showDate && (
+                    <td className="py-3 px-3 text-gray-500 text-xs whitespace-nowrap">
+                      {row.date || "—"}
+                    </td>
                   )}
-                </td>
-                {showReviewed && (
-                  <td className="py-3 px-3">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        row.reviewed
-                          ? "bg-purple-100 text-purple-700"
-                          : "bg-orange-100 text-orange-700"
-                      }`}
-                    >
-                      {row.reviewed ? "완료" : "미검토"}
-                    </span>
+                  <td className="py-3 px-3 text-gray-700 max-w-xs">
+                    {row.positiveFeedback ? (
+                      <div>
+                        <div className={isExpanded ? "" : "line-clamp-4"}>
+                          <p className="text-green-800 text-xs">{row.positiveFeedback}</p>
+                        </div>
+                        <button
+                          onClick={() => toggleRow(row.id)}
+                          className="text-gray-400 text-xs mt-0.5 hover:text-gray-600"
+                        >
+                          {isExpanded ? "접기 ▲" : "더 보기 ▼"}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
                   </td>
-                )}
-              </tr>
-            ))}
+                  <td className="py-3 px-3 text-gray-700 max-w-xs">
+                    {row.negativeFeedback ? (
+                      <div>
+                        <div className={isExpanded ? "" : "line-clamp-4"}>
+                          <p className="text-red-800 text-xs">{row.negativeFeedback}</p>
+                        </div>
+                        <button
+                          onClick={() => toggleRow(row.id)}
+                          className="text-gray-400 text-xs mt-0.5 hover:text-gray-600"
+                        >
+                          {isExpanded ? "접기 ▲" : "더 보기 ▼"}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
+                  </td>
+                  {showReviewed && (
+                    <td className="py-3 px-3">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          row.reviewed
+                            ? "bg-purple-100 text-purple-700"
+                            : "bg-orange-100 text-orange-700"
+                        }`}
+                      >
+                        {row.reviewed ? "완료" : "미검토"}
+                      </span>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
             {paginated.length === 0 && (
               <tr>
                 <td colSpan={colSpan} className="py-8 text-center text-gray-400">

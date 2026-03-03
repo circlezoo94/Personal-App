@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function SentimentChart({ totalPositive, totalNegative }: Props) {
-  const data = [
+  const pieData = [
     { name: "긍정 피드백", value: totalPositive },
     { name: "부정 피드백", value: totalNegative },
   ].filter((d) => d.value > 0);
@@ -21,7 +21,7 @@ export default function SentimentChart({ totalPositive, totalNegative }: Props) 
       <ResponsiveContainer width="100%" height={280}>
         <PieChart>
           <Pie
-            data={data}
+            data={pieData}
             cx="50%"
             cy="50%"
             innerRadius={70}
@@ -31,7 +31,7 @@ export default function SentimentChart({ totalPositive, totalNegative }: Props) 
             label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
             labelLine={false}
           >
-            {data.map((_, i) => (
+            {pieData.map((_, i) => (
               <Cell key={i} fill={COLORS[i % COLORS.length]} />
             ))}
           </Pie>

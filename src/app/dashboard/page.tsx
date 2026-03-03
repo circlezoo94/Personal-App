@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import type { AnalysisResult, FeedbackRow, HospitalStats } from "@/types/analysis";
 import StatCards from "@/components/StatCards";
 import SentimentChart from "@/components/SentimentChart";
-import KeywordChart from "@/components/KeywordChart";
 import FeedbackTable from "@/components/FeedbackTable";
+import KeywordSearch from "@/components/KeywordSearch";
 import HospitalChart from "@/components/HospitalChart";
 import ProductChart from "@/components/ProductChart";
 import DashboardFilters from "@/components/DashboardFilters";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import SheetErrorBanner from "@/components/SheetErrorBanner";
 import { buildHospitalStats, buildProductStats, extractKeywords } from "@/lib/hospitalAnalyzer";
+import SummaryCard from "@/components/SummaryCard";
+import { analyzeFromCsv } from "@/lib/analyzeFromCsv";
+import type { SheetErrorCode } from "@/lib/sheetErrors";
 
 type QuickDate = "all" | "today" | "week" | "month";
 type ReviewStatus = "all" | "reviewed" | "unreviewed";
@@ -92,6 +97,13 @@ export default function DashboardPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [ready, setReady] = useState(false);
   const router = useRouter();
+  const { data: session } = useSession();
+
+  // 새로고침 상태
+  const [refreshLoading, setRefreshLoading] = useState(false);
+  const [refreshError, setRefreshError] = useState<SheetErrorCode | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [cacheStatus, setCacheStatus] = useState<"HIT" | "MISS" | null>(null);
 
   // 필터 상태
   const [selectedHospitals, setSelectedHospitals] = useState<string[]>([]);
@@ -108,6 +120,34 @@ export default function DashboardPage() {
     catch { router.replace("/"); }
     finally { setReady(true); }
   }, [router]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshLoading(true);
+    setRefreshError(null);
+    try {
+      const res = await fetch("/api/sheet");
+      if (!res.ok) {
+        const json = await res.json() as { error?: string };
+        setRefreshError((json.error as SheetErrorCode) ?? "UNKNOWN");
+        return;
+      }
+      const xCache = res.headers.get("X-Cache");
+      const csvText = await res.text();
+      try {
+        const newResult = analyzeFromCsv(csvText);
+        sessionStorage.setItem("analysisResult", JSON.stringify(newResult));
+        setResult(newResult);
+        setLastRefreshed(new Date());
+        setCacheStatus(xCache === "HIT" ? "HIT" : "MISS");
+      } catch {
+        setRefreshError("PARSE_FAILED");
+      }
+    } catch {
+      setRefreshError("UNKNOWN");
+    } finally {
+      setRefreshLoading(false);
+    }
+  }, []);
 
   const filteredRows = useMemo(
     () => result
@@ -129,12 +169,12 @@ export default function DashboardPage() {
   );
 
   const filteredPositiveKeywords = useMemo(
-    () => extractKeywords(filteredRows.map((r) => r.positiveFeedback).filter(Boolean), 20),
+    () => extractKeywords(filteredRows.map((r) => r.positiveFeedback), 5),
     [filteredRows]
   );
 
   const filteredNegativeKeywords = useMemo(
-    () => extractKeywords(filteredRows.map((r) => r.negativeFeedback).filter(Boolean), 20),
+    () => extractKeywords(filteredRows.map((r) => r.negativeFeedback), 5),
     [filteredRows]
   );
 
@@ -165,13 +205,48 @@ export default function DashboardPage() {
             )}
           </p>
         </div>
-        <button
-          onClick={() => router.push("/")}
-          className="text-sm text-blue-600 hover:underline self-start sm:self-auto"
-        >
-          다른 시트 분석
-        </button>
+        <div className="flex items-center gap-3 self-start sm:self-auto flex-wrap">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshLoading}
+              className="text-sm text-blue-600 border border-blue-200 rounded px-3 py-1 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {refreshLoading ? "불러오는 중..." : "새로고침"}
+            </button>
+            {lastRefreshed && (
+              <span className="text-xs text-gray-400">
+                {lastRefreshed.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </span>
+            )}
+            {cacheStatus === "HIT" && (
+              <span className="text-xs text-gray-400">캐시됨</span>
+            )}
+            {cacheStatus === "MISS" && (
+              <span className="text-xs text-blue-400">새로 불러옴</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {session?.user?.email && (
+              <span className="text-xs text-gray-400">{session.user.email}</span>
+            )}
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="text-sm text-red-400 hover:underline"
+            >
+              로그아웃
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* 새로고침 에러 */}
+      {refreshError && (
+        <SheetErrorBanner
+          errorCode={refreshError}
+          onRetry={handleRefresh}
+        />
+      )}
 
       {/* 필터 */}
       <DashboardFilters
@@ -195,6 +270,17 @@ export default function DashboardPage() {
       {/* 통계 카드 */}
       <StatCards result={statsForCards} />
 
+      {/* 피드백 요약 */}
+      <SummaryCard
+        rows={filteredRows}
+        hospitalStats={filteredHospitalStats}
+        productStats={filteredProductStats}
+        positiveKeywords={filteredPositiveKeywords}
+        negativeKeywords={filteredNegativeKeywords}
+        totalReviewed={filteredStats.totalReviewed}
+        totalUnreviewed={filteredStats.totalUnreviewed}
+      />
+
       {/* 차트 행 1: 병원별 + 긍부정 도넛 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <HospitalChart hospitalStats={filteredHospitalStats} />
@@ -207,11 +293,8 @@ export default function DashboardPage() {
       {/* 프로덕트별 차트 */}
       <ProductChart productStats={filteredProductStats} />
 
-      {/* 차트 행 2: 키워드 (긍정/부정 각각) */}
-      <KeywordChart
-        positiveKeywords={filteredPositiveKeywords}
-        negativeKeywords={filteredNegativeKeywords}
-      />
+      {/* 키워드 검색 */}
+      <KeywordSearch rows={result.rows} />
 
       {/* 피드백 테이블 */}
       <FeedbackTable rows={filteredRows} detectedColumns={result.detectedColumns} />
