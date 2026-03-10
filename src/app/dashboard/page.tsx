@@ -9,14 +9,17 @@ import SentimentChart from "@/components/SentimentChart";
 import FeedbackTable from "@/components/FeedbackTable";
 import KeywordSearch from "@/components/KeywordSearch";
 import HospitalChart from "@/components/HospitalChart";
+import MonthlyTrendChart from "@/components/MonthlyTrendChart";
 import ProductChart from "@/components/ProductChart";
 import DashboardFilters from "@/components/DashboardFilters";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import SheetErrorBanner from "@/components/SheetErrorBanner";
 import { buildHospitalStats, buildProductStats, extractKeywords } from "@/lib/hospitalAnalyzer";
 import SummaryCard from "@/components/SummaryCard";
+import InsightCard from "@/components/InsightCard";
 import { analyzeFromCsv } from "@/lib/analyzeFromCsv";
 import type { SheetErrorCode } from "@/lib/sheetErrors";
+import { loadHospitalMapping, applyHospitalMapping } from "@/lib/hospitalMapping";
 
 type QuickDate = "all" | "today" | "week" | "month";
 type ReviewStatus = "all" | "reviewed" | "unreviewed";
@@ -113,6 +116,9 @@ export default function DashboardPage() {
   const [dateEnd, setDateEnd] = useState("");
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus>("all");
 
+  // 병원명 매핑
+  const [hospitalMapping, setHospitalMapping] = useState<Record<string, string>>(() => loadHospitalMapping());
+
   useEffect(() => {
     const stored = sessionStorage.getItem("analysisResult");
     if (!stored) { router.replace("/"); return; }
@@ -149,11 +155,26 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const mappedRows = useMemo(
+    () => result
+      ? result.rows.map((row) => ({
+          ...row,
+          hospital: applyHospitalMapping(row.hospital, hospitalMapping),
+        }))
+      : [],
+    [result, hospitalMapping]
+  );
+
+  const mappedHospitals = useMemo(
+    () => Array.from(new Set(mappedRows.map((r) => r.hospital))).sort(),
+    [mappedRows]
+  );
+
   const filteredRows = useMemo(
     () => result
-      ? applyFilters(result.rows, selectedHospitals, selectedProducts, quickDate, dateStart, dateEnd, reviewStatus)
+      ? applyFilters(mappedRows, selectedHospitals, selectedProducts, quickDate, dateStart, dateEnd, reviewStatus)
       : [],
-    [result, selectedHospitals, selectedProducts, quickDate, dateStart, dateEnd, reviewStatus]
+    [mappedRows, selectedHospitals, selectedProducts, quickDate, dateStart, dateEnd, reviewStatus]
   );
 
   const filteredStats = useMemo(() => computeStats(filteredRows), [filteredRows]);
@@ -186,15 +207,65 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="min-h-screen bg-gray-50">
+      {/* 네비게이션 바 */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center shrink-0">
+              <span className="text-white text-xs font-bold">FL</span>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-900 leading-tight">FeedbackLens</p>
+              <p className="text-xs text-gray-400 leading-tight">powered by sentiment analysis</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshLoading}
+                className="flex items-center gap-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {refreshLoading ? "불러오는 중..." : "새로고침"}
+              </button>
+              {lastRefreshed && (
+                <span className="text-xs text-gray-400 hidden sm:inline">
+                  {lastRefreshed.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              {session?.user?.email && (
+                <span className="text-xs text-gray-500 hidden sm:inline">{session.user.email}</span>
+              )}
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+              >
+                로그아웃
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* 메인 컨텐츠 */}
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">피드백 분석 대시보드</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-xl font-bold text-gray-900">피드백 분석 대시보드</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
             전체 {result.totalRows}건
             {filteredRows.length !== result.totalRows && (
-              <span className="ml-1 text-blue-600 font-medium">
+              <span className="ml-1 text-purple-600 font-medium">
                 → 필터 적용 {filteredRows.length}건
               </span>
             )}
@@ -205,99 +276,65 @@ export default function DashboardPage() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-3 self-start sm:self-auto flex-wrap">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshLoading}
-              className="text-sm text-blue-600 border border-blue-200 rounded px-3 py-1 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {refreshLoading ? "불러오는 중..." : "새로고침"}
-            </button>
-            {lastRefreshed && (
-              <span className="text-xs text-gray-400">
-                {lastRefreshed.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-              </span>
-            )}
-            {cacheStatus === "HIT" && (
-              <span className="text-xs text-gray-400">캐시됨</span>
-            )}
-            {cacheStatus === "MISS" && (
-              <span className="text-xs text-blue-400">새로 불러옴</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {session?.user?.email && (
-              <span className="text-xs text-gray-400">{session.user.email}</span>
-            )}
-            <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="text-sm text-red-400 hover:underline"
-            >
-              로그아웃
-            </button>
+
+        {refreshError && (
+          <SheetErrorBanner
+            errorCode={refreshError}
+            onRetry={handleRefresh}
+          />
+        )}
+
+        <DashboardFilters
+          hospitals={mappedHospitals}
+          rawHospitals={result.hospitals}
+          onMappingChange={setHospitalMapping}
+          selectedHospitals={selectedHospitals}
+          onHospitalsChange={setSelectedHospitals}
+          products={result.products}
+          selectedProducts={selectedProducts}
+          onProductsChange={setSelectedProducts}
+          quickDate={quickDate}
+          onQuickDateChange={setQuickDate}
+          dateStart={dateStart}
+          dateEnd={dateEnd}
+          onDateStartChange={setDateStart}
+          onDateEndChange={setDateEnd}
+          reviewStatus={reviewStatus}
+          onReviewStatusChange={setReviewStatus}
+          hasReviewedColumn={!!result.detectedColumns.reviewed}
+        />
+
+        <StatCards result={statsForCards} />
+
+        <SummaryCard
+          rows={filteredRows}
+          hospitalStats={filteredHospitalStats}
+          productStats={filteredProductStats}
+          positiveKeywords={filteredPositiveKeywords}
+          negativeKeywords={filteredNegativeKeywords}
+          totalReviewed={filteredStats.totalReviewed}
+          totalUnreviewed={filteredStats.totalUnreviewed}
+        />
+
+        <InsightCard result={result} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <HospitalChart hospitalStats={filteredHospitalStats} rows={filteredRows} />
+          <div className="flex flex-col gap-6">
+            <SentimentChart
+              totalPositive={filteredStats.totalPositive}
+              totalNegative={filteredStats.totalNegative}
+            />
+            <MonthlyTrendChart rows={filteredRows} />
           </div>
         </div>
+
+        <ProductChart productStats={filteredProductStats} />
+
+        <KeywordSearch rows={result.rows} />
+
+        <FeedbackTable rows={filteredRows} detectedColumns={result.detectedColumns} />
       </div>
-
-      {/* 새로고침 에러 */}
-      {refreshError && (
-        <SheetErrorBanner
-          errorCode={refreshError}
-          onRetry={handleRefresh}
-        />
-      )}
-
-      {/* 필터 */}
-      <DashboardFilters
-        hospitals={result.hospitals}
-        selectedHospitals={selectedHospitals}
-        onHospitalsChange={setSelectedHospitals}
-        products={result.products}
-        selectedProducts={selectedProducts}
-        onProductsChange={setSelectedProducts}
-        quickDate={quickDate}
-        onQuickDateChange={setQuickDate}
-        dateStart={dateStart}
-        dateEnd={dateEnd}
-        onDateStartChange={setDateStart}
-        onDateEndChange={setDateEnd}
-        reviewStatus={reviewStatus}
-        onReviewStatusChange={setReviewStatus}
-        hasReviewedColumn={!!result.detectedColumns.reviewed}
-      />
-
-      {/* 통계 카드 */}
-      <StatCards result={statsForCards} />
-
-      {/* 피드백 요약 */}
-      <SummaryCard
-        rows={filteredRows}
-        hospitalStats={filteredHospitalStats}
-        productStats={filteredProductStats}
-        positiveKeywords={filteredPositiveKeywords}
-        negativeKeywords={filteredNegativeKeywords}
-        totalReviewed={filteredStats.totalReviewed}
-        totalUnreviewed={filteredStats.totalUnreviewed}
-      />
-
-      {/* 차트 행 1: 병원별 + 긍부정 도넛 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <HospitalChart hospitalStats={filteredHospitalStats} />
-        <SentimentChart
-          totalPositive={filteredStats.totalPositive}
-          totalNegative={filteredStats.totalNegative}
-        />
-      </div>
-
-      {/* 프로덕트별 차트 */}
-      <ProductChart productStats={filteredProductStats} />
-
-      {/* 키워드 검색 */}
-      <KeywordSearch rows={result.rows} />
-
-      {/* 피드백 테이블 */}
-      <FeedbackTable rows={filteredRows} detectedColumns={result.detectedColumns} />
     </div>
   );
 }

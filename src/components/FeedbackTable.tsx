@@ -8,20 +8,25 @@ interface Props {
   detectedColumns: DetectedColumns;
 }
 
+type SortOrder = "asc" | "desc" | "none";
+
 const PAGE_SIZE = 10;
 
 export default function FeedbackTable({ rows, detectedColumns }: Props) {
   const [page, setPage] = useState(0);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-
-  const totalPages = Math.ceil(rows.length / PAGE_SIZE);
-  const paginated = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
 
   const showHospital = !!detectedColumns.hospital;
   const showDate = !!detectedColumns.date;
   const showReviewed = !!detectedColumns.reviewed;
 
   const colSpan = 1 + (showHospital ? 1 : 0) + (showDate ? 1 : 0) + 2 + (showReviewed ? 1 : 0);
+
+  function toggleSort() {
+    setSortOrder((prev) => (prev === "none" ? "asc" : prev === "asc" ? "desc" : "none"));
+    setPage(0);
+  }
 
   function toggleRow(id: number) {
     setExpandedRows((prev) => {
@@ -34,6 +39,20 @@ export default function FeedbackTable({ rows, detectedColumns }: Props) {
       return next;
     });
   }
+
+  const sortedRows =
+    sortOrder === "none"
+      ? rows
+      : [...rows].sort((a, b) => {
+          const da = new Date(a.date ?? "").getTime();
+          const db = new Date(b.date ?? "").getTime();
+          return sortOrder === "asc" ? da - db : db - da;
+        });
+
+  const totalPages = Math.ceil(sortedRows.length / PAGE_SIZE);
+  const paginated = sortedRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const sortIcon = sortOrder === "asc" ? " ↑" : sortOrder === "desc" ? " ↓" : " ↕";
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -48,26 +67,31 @@ export default function FeedbackTable({ rows, detectedColumns }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left py-2 px-3 text-gray-500 font-medium w-10">#</th>
+              <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium uppercase w-10">#</th>
               {showHospital && (
-                <th className="text-left py-2 px-3 text-gray-500 font-medium w-28">병원명</th>
+                <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium uppercase w-28">병원명</th>
               )}
               {showDate && (
-                <th className="text-left py-2 px-3 text-gray-500 font-medium w-24">접수 날짜</th>
+                <th
+                  onClick={toggleSort}
+                  className="text-left py-2 px-3 text-xs text-gray-500 font-medium uppercase w-28 cursor-pointer select-none hover:bg-gray-100 rounded"
+                >
+                  접수 날짜{sortIcon}
+                </th>
               )}
-              <th className="text-left py-2 px-3 text-gray-500 font-medium">긍정 피드백</th>
-              <th className="text-left py-2 px-3 text-gray-500 font-medium">부정 피드백</th>
+              <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium uppercase">긍정 피드백</th>
+              <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium uppercase">부정 피드백</th>
               {showReviewed && (
-                <th className="text-left py-2 px-3 text-gray-500 font-medium w-20">검토</th>
+                <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium uppercase w-20">검토</th>
               )}
             </tr>
           </thead>
           <tbody>
-            {paginated.map((row) => {
+            {paginated.map((row, idx) => {
               const isExpanded = expandedRows.has(row.id);
               return (
                 <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50 align-top">
-                  <td className="py-3 px-3 text-gray-400 text-xs">{row.id}</td>
+                  <td className="py-3 px-3 text-gray-400 text-xs">{page * PAGE_SIZE + idx + 1}</td>
                   {showHospital && (
                     <td className="py-3 px-3 text-gray-700 text-xs font-medium whitespace-nowrap">
                       {row.hospital || "—"}
@@ -117,11 +141,11 @@ export default function FeedbackTable({ rows, detectedColumns }: Props) {
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                           row.reviewed
-                            ? "bg-purple-100 text-purple-700"
-                            : "bg-orange-100 text-orange-700"
+                            ? "border border-green-400 text-green-600"
+                            : "border border-gray-300 text-gray-400"
                         }`}
                       >
-                        {row.reviewed ? "완료" : "미검토"}
+                        {row.reviewed ? "✓ 완료" : "미검토"}
                       </span>
                     </td>
                   )}
