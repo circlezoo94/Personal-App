@@ -13,11 +13,16 @@ const handler = NextAuth({
       const allowedEmails = (process.env.ALLOWED_EMAILS ?? "")
         .split(",")
         .map((e) => e.trim());
-      console.log("=== AUTH DEBUG ===");
-      console.log("user.email:", user.email);
-      console.log("allowedEmails:", allowedEmails);
-      console.log("isAllowed:", allowedEmails.includes(user.email ?? ""));
-      return allowedEmails.includes(user.email ?? "");
+
+      const allowedDomains = (process.env.ALLOWED_DOMAINS ?? "")
+        .split(",")
+        .map((d) => d.trim())
+        .filter(Boolean);
+
+      const email = user.email ?? "";
+      const domain = email.split("@")[1] ?? "";
+
+      return allowedEmails.includes(email) || allowedDomains.includes(domain);
     },
     async session({ session }) {
       return session;
