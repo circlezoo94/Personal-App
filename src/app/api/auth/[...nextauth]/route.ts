@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
 const handler = NextAuth({
+  trustHost: true,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -9,6 +10,12 @@ const handler = NextAuth({
     }),
   ],
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      const fixedBase = process.env.NEXTAUTH_URL ?? baseUrl;
+      if (url.startsWith("/")) return `${fixedBase}${url}`;
+      if (url.startsWith(fixedBase)) return url;
+      return fixedBase;
+    },
     async signIn({ user }) {
       const allowedEmails = (process.env.ALLOWED_EMAILS ?? "")
         .split(",")
